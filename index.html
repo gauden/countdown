@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Countdown</title>
+    <style>
+        :root {
+            --bg-color-1: #0f172a;
+            --bg-color-2: #1e1b4b;
+            --accent-color: #38bdf8;
+            --text-color: #f8fafc;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: var(--text-color);
+            background-color: var(--bg-color-1);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        /* Textured Plasma Background */
+        #canvas-bg {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+            /* Using a complex gradient mesh for a "Processing" feel */
+            background: 
+                radial-gradient(circle at 0% 0%, #1e1b4b 0%, transparent 50%),
+                radial-gradient(circle at 100% 0%, #312e81 0%, transparent 50%),
+                radial-gradient(circle at 100% 100%, #1e1b4b 0%, transparent 50%),
+                radial-gradient(circle at 0% 100%, #0f172a 0%, transparent 50%),
+                linear-gradient(45deg, #0f172a, #1e1b4b);
+            background-size: 200% 200%;
+            animation: plasma 20s ease infinite;
+        }
+
+        /* The "Texture" overlay (Grain/Noise) */
+        #canvas-bg::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0.15;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3Update display logic to show past time%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        }
+
+        @keyframes plasma {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .container {
+            text-align: center;
+            padding: 3rem;
+            max-width: 800px;
+            width: 90%;
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border-radius: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transition: all 0.5s ease;
+        }
+
+        h1 { font-size: 2.8rem; margin-bottom: 0.5rem; letter-spacing: -0.03em; font-weight: 700; }
+        .note { opacity: 0.7; margin-bottom: 2.5rem; font-size: 1.1rem; line-height: 1.5; }
+        
+        .countdown-value {
+            font-size: 6rem;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            color: var(--accent-color);
+            line-height: 0.9;
+            display: block;
+        }
+        
+        .countdown-unit {
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            margin-top: 1rem;
+            display: block;
+            opacity: 0.9;
+        }
+
+        .learn-more {
+            display: inline-block;
+            margin-top: 2.5rem;
+            color: var(--accent-color);
+            text-decoration: none;
+            font-weight: 600;
+            padding: 8px 16px;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 12px;
+            transition: all 0.3s;
+        }
+        .learn-more:hover { 
+            background: rgba(56, 189, 248, 0.1);
+            border-color: var(--accent-color);
+        }
+
+        /* Generator Form */
+        #generator { display: none; text-align: left; animation: fadeIn 0.4s ease; }
+        .form-group { margin-bottom: 1.2rem; }
+        label { display: block; margin-bottom: 0.5rem; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; opacity: 0.7; }
+        input, select, textarea {
+            width: 100%;
+            padding: 0.8rem;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(0,0,0,0.2);
+            color: white;
+            font-size: 1rem;
+            outline: none;
+        }
+        input:focus { border-color: var(--accent-color); }
+
+        button.main-btn {
+            background: var(--accent-color);
+            color: #0f172a;
+            border: none;
+            padding: 1rem;
+            border-radius: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            width: 100%;
+            font-size: 1rem;
+            margin-top: 1rem;
+            transition: transform 0.2s;
+        }
+        button.main-btn:active { transform: scale(0.98); }
+
+        .toggle-form {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s;
+        }
+        .toggle-form:hover { background: rgba(255,255,255,0.15); }
+
+        #share-url {
+            margin-top: 1.5rem;
+            padding: 12px;
+            background: rgba(0,0,0,0.4);
+            border-radius: 8px;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 0.75rem;
+            display: none;
+            border: 1px dashed rgba(255,255,255,0.2);
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-bg"></div>
+
+    <div class="container" id="display-container">
+        <h1 id="title-display">Countdown</h1>
+        <p class="note" id="note-display"></p>
+        <div id="counter-box">
+            <span class="countdown-value" id="value-display">0</span>
+            <span class="countdown-unit" id="unit-label">Units</span>
+        </div>
+        <a href="#" id="link-display" class="learn-more" target="_blank" style="display: none;">Learn More →</a>
+    </div>
+
+    <div class="container" id="generator">
+        <h1>Create</h1>
+        <div class="form-group">
+            <label>Title</label>
+            <input type="text" id="in-title" placeholder="e.g. Next Summer">
+        </div>
+        <div class="form-group">
+            <label>Target Date & Time</label>
+            <input type="datetime-local" id="in-date">
+        </div>
+        <div class="form-group">
+            <label>Units</label>
+            <select id="in-unit">
+                <option value="seconds">Seconds</option>
+                <option value="minutes">Minutes</option>
+                <option value="hours">Hours</option>
+                <option value="days">Days</option>
+                <option value="weeks" selected>Weeks</option>
+                <option value="months">Months</option>
+                <option value="years">Years</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Note (Optional)</label>
+            <textarea id="in-note" rows="2"></textarea>
+        </div>
+        <div class="form-group">
+            <label>URL (Optional)</label>
+            <input type="url" id="in-url" placeholder="https://">
+        </div>
+        <button class="main-btn" onclick="generateLink()">Create & Copy Link</button>
+        <div id="share-url"></div>
+    </div>
+
+    <button class="toggle-form" onclick="toggleMode()" id="mode-btn">Create Your Own</button>
+
+    <script>
+        const SECOND = 1000, MINUTE = 60000, HOUR = 3600000, DAY = 86400000;
+        const WEEK = DAY * 7, MONTH = DAY * 30.4375, YEAR = DAY * 365.25;
+
+        let countdownInterval;
+
+        function getParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                date: params.get('d'),
+                unit: params.get('u') || 'weeks',
+                title: params.get('t') || 'Countdown',
+                note: params.get('n'),
+                link: params.get('l')
+            };
+        }
+
+        function updateDisplay() {
+            const p = getParams();
+            if (!p.date) { showGenerator(); return; }
+
+            document.getElementById('title-display').innerText = p.title;
+            const noteEl = document.getElementById('note-display');
+            if (p.note) { noteEl.innerText = p.note; noteEl.style.display = 'block'; }
+            else { noteEl.style.display = 'none'; }
+
+            const linkEl = document.getElementById('link-display');
+            if (p.link) { linkEl.href = p.link; linkEl.style.display = 'inline-block'; }
+            else { linkEl.style.display = 'none'; }
+
+            if (countdownInterval) clearInterval(countdownInterval);
+            
+            const target = new Date(p.date).getTime();
+            
+            function tick() {
+                const now = new Date().getTime();
+                const diff = target - now;
+                const absDiff = Math.abs(diff);
+
+                let val = 0;
+                switch(p.unit) {
+                    case 'seconds': val = absDiff / SECOND; break;
+                    case 'minutes': val = absDiff / MINUTE; break;
+                    case 'hours':   val = absDiff / HOUR; break;
+                    case 'days':    val = absDiff / DAY; break;
+                    case 'weeks':   val = absDiff / WEEK; break;
+                    case 'months':  val = absDiff / MONTH; break;
+                    case 'years':   val = absDiff / YEAR; break;
+                }
+
+                // Fix: Use Math.floor to get the count of COMPLETED units
+                // and only show decimals if the value is very small (< 10)
+                const precision = val < 10 ? 1 : 0;
+                let finalValue;
+                
+                if (precision === 0) {
+                    finalValue = Math.floor(val).toLocaleString();
+                } else {
+                    // Keep 1 decimal for small numbers for better "ticking" visual
+                    finalValue = val.toLocaleString(undefined, {
+                        minimumFractionDigits: 1, 
+                        maximumFractionDigits: 1
+                    });
+                }
+
+                document.getElementById('value-display').innerText = finalValue;
+                document.getElementById('unit-label').innerText = diff < 0 ? `${p.unit} passed` : p.unit;
+            }
+
+            tick();
+            countdownInterval = setInterval(tick, 1000);
+        }
+
+        function toggleMode() {
+            const gen = document.getElementById('generator');
+            if (gen.style.display === 'block') {
+                const p = getParams();
+                if(p.date) {
+                    gen.style.display = 'none';
+                    document.getElementById('display-container').style.display = 'block';
+                    document.getElementById('mode-btn').innerText = "Create Your Own";
+                } else {
+                    location.reload();
+                }
+            } else {
+                showGenerator();
+            }
+        }
+
+        function showGenerator() {
+            document.getElementById('generator').style.display = 'block';
+            document.getElementById('display-container').style.display = 'none';
+            document.getElementById('mode-btn').innerText = "Back to View";
+            
+            if (!document.getElementById('in-date').value) {
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                tomorrow.setMinutes(tomorrow.getMinutes() - tomorrow.getTimezoneOffset());
+                document.getElementById('in-date').value = tomorrow.toISOString().slice(0, 16);
+            }
+        }
+
+        function generateLink() {
+            const params = new URLSearchParams();
+            const d = document.getElementById('in-date').value;
+            const u = document.getElementById('in-unit').value;
+            const t = document.getElementById('in-title').value;
+            const n = document.getElementById('in-note').value;
+            const l = document.getElementById('in-url').value;
+
+            if (d) params.set('d', d);
+            if (u !== 'weeks') params.set('u', u);
+            if (t) params.set('t', t);
+            if (n) params.set('n', n);
+            if (l) params.set('l', l);
+
+            const newUrl = window.location.origin + window.location.pathname + '?' + params.toString();
+            document.getElementById('share-url').innerText = newUrl;
+            document.getElementById('share-url').style.display = 'block';
+            
+            navigator.clipboard.writeText(newUrl).then(() => {
+                alert("Link copied to clipboard!");
+                window.location.href = newUrl;
+            });
+        }
+
+        window.addEventListener('popstate', updateDisplay);
+        updateDisplay();
+    </script>
+</body>
+</html>
