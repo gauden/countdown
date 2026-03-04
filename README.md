@@ -51,3 +51,12 @@ http://localhost:8000/?d=2026-12-31T23:59&u=days&t=New%20Year&n=Time%20left%20to
 
 If `u` is omitted, it defaults to `weeks`.
 If `d` is missing, the app opens the generator UI.
+
+## Production deployment
+
+`main` is deployed automatically to `molly` by GitHub Actions using a self-hosted runner.
+
+- Workflow: `.github/workflows/deploy-countdown.yml`
+- Deploy script: `ops/deploy/deploy_countdown.sh`
+- Caddy snippet: `ops/caddy/countdown.caddy.snippet`
+- Runbook: `docs/DEPLOYMENT.md`

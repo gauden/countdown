@@ -1,0 +1,8 @@
+# Copy this into /srv/ops/goaccess/goaccess-sites.yaml under `sites:`
+# Ensure internal_port is unique across all GoAccess services.
+site_id: countdown
+source_host: countdown.gaudengalea.com
+log_file: /home/ubuntu/apps/caddy/data/access-countdown.log
+container_name: countdown-goaccess
+internal_port: 7892
+enabled: true

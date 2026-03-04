@@ -1,0 +1,14 @@
+countdown.gaudengalea.com {
+    root * /srv/www/countdown/current
+    encode zstd gzip
+    file_server
+
+    log {
+        output file /home/ubuntu/apps/caddy/data/access-countdown.log {
+            roll_size 10MiB
+            roll_keep 20
+            roll_keep_for 720h
+        }
+        format json
+    }
+}

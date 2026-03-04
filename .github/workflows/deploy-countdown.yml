@@ -1,0 +1,33 @@
+name: Deploy Countdown
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: deploy-countdown-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to molly
+    runs-on: self-hosted
+    permissions:
+      contents: read
+    env:
+      DEPLOY_ROOT: /srv/www/countdown
+      KEEP_RELEASES: "10"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy static site
+        run: |
+          chmod +x ops/deploy/deploy_countdown.sh
+          ./ops/deploy/deploy_countdown.sh
+
+      - name: Verify deployed index
+        run: |
+          test -f /srv/www/countdown/current/index.html
+          echo "Deployed release: $(readlink /srv/www/countdown/current)"
