@@ -1,143 +1,123 @@
-# Countdown Deployment Runbook
+# Deployment (Project Setup, Public-Safe)
 
-This runbook deploys the static site in this repo to:
-- Host: `countdown.gaudengalea.com`
-- VM: `molly`
-- Web root on VM: `/srv/www/countdown/current`
-- Log file for analytics: `/home/ubuntu/apps/caddy/data/access-countdown.log`
-- Caddy in-container log path: `/data/access-countdown.log`
+This document captures the reusable deployment pattern for this project without private infrastructure details.
 
-## 1) One-time DNS and Cloudflare setup
-1. In Cloudflare DNS, create:
-- Type: `A`
-- Name: `countdown`
-- IPv4: `84.8.249.247`
-- Proxy status: `Proxied`
-2. In Cloudflare SSL/TLS mode, set `Full (strict)`.
+## Variables
+Set these values for your environment before running commands:
+- `APP_ID` (example: `countdown`)
+- `FQDN` (example: `countdown.example.com`)
+- `REPO_URL` (this repository URL)
+- `REPO_NAME` (this repository name)
+- `DEPLOY_ROOT` (example: `/srv/www/${APP_ID}`)
+- `CADDY_SITES_DIR` (example: `/path/to/caddy/sites`)
+- `CADDY_COMPOSE_DIR` (example: `/path/to/caddy`)
+- `CADDY_HOST_DATA_DIR` (example: `/path/to/caddy/data`)
+- `GOACCESS_ROOT` (example: `/srv/ops/goaccess`)
+- `GOACCESS_PORT` (unique internal port)
 
-## 2) One-time Caddy setup on `molly`
-Run on `molly`:
+## 1) DNS and TLS
+1. Create a proxied DNS record for `${FQDN}` pointing to your origin IP.
+2. Use strict TLS mode at your edge provider.
 
+## 2) Prepare deployment root on server
 ```bash
-set -euo pipefail
+sudo mkdir -p "${DEPLOY_ROOT}/releases"
+sudo chown -R "$USER":"$USER" "${DEPLOY_ROOT}"
+sudo chmod -R u=rwX,go=rX "${DEPLOY_ROOT}"
+```
 
-mkdir -p /srv/www/countdown/releases
-mkdir -p /home/ubuntu/repos
-cd /home/ubuntu/repos
-
-if [ -d countdown/.git ]; then
-  cd countdown && git pull --ff-only
+## 3) Persistent repository checkout for ops tasks
+```bash
+mkdir -p ~/repos
+cd ~/repos
+if [ -d "${REPO_NAME}/.git" ]; then
+  cd "${REPO_NAME}" && git pull --ff-only
 else
-  git clone https://github.com/gauden/countdown.git
-  cd countdown
+  git clone "${REPO_URL}"
+  cd "${REPO_NAME}"
 fi
+```
 
-cp ops/caddy/countdown.caddy.snippet /home/ubuntu/apps/caddy/sites/countdown.caddy.snippet
+Do not use CI runner work directories for manual operations.
 
-grep -q "import /etc/caddy/countdown.caddy.snippet" /home/ubuntu/apps/caddy/sites/Caddyfile \
-  || echo "import /etc/caddy/countdown.caddy.snippet" >> /home/ubuntu/apps/caddy/sites/Caddyfile
+## 4) Caddy requirements
+1. Ensure Caddy can read deployed files via bind mount:
+- `${DEPLOY_ROOT}:${DEPLOY_ROOT}:ro`
+2. Ensure Caddy sites directory is mounted into the container.
+3. Ensure Caddy data directory is mounted to `/data` in the container.
 
-# Required bind mount so Caddy container can serve /srv/www/countdown/current.
-# Ensure your caddy service has:
-#   - /srv/www/countdown:/srv/www/countdown:ro
-# Then recreate caddy:
-cd /home/ubuntu/apps/caddy
+## 5) Apply app snippet
+```bash
+cp "ops/caddy/${APP_ID}.caddy.snippet" "${CADDY_SITES_DIR}/${APP_ID}.caddy.snippet"
+
+grep -q "import /etc/caddy/${APP_ID}.caddy.snippet" "${CADDY_SITES_DIR}/Caddyfile" \
+  || echo "import /etc/caddy/${APP_ID}.caddy.snippet" >> "${CADDY_SITES_DIR}/Caddyfile"
+
+cd "${CADDY_COMPOSE_DIR}"
 docker compose up -d caddy
-
 docker exec caddy caddy validate --config /etc/caddy/Caddyfile
 docker exec caddy caddy reload --config /etc/caddy/Caddyfile
 ```
 
-Notes:
-- This host is intentionally public (no Cloudflare Access policy required).
-- Do not use the ephemeral GitHub runner workspace (`~/actions-runner/_work/...`) as your ops source path.
+Snippet contract:
+- root: `${DEPLOY_ROOT}/current`
+- log path in container: `/data/access-${APP_ID}.log`
 
-## 3) GitHub Actions self-hosted runner on `molly`
-A self-hosted runner on `molly` is required because deployment writes directly to `/srv/www/countdown`.
+## 6) GitHub Actions deploy contract
+- Trigger: push to `main`
+- Runner: self-hosted
+- Script: `ops/deploy/deploy_countdown.sh`
+- Deploy behavior:
+  - writes `${DEPLOY_ROOT}/releases/<timestamp>-<sha12>`
+  - updates `${DEPLOY_ROOT}/current` symlink
+  - keeps latest N releases
 
-Runner requirements:
-- Label includes `self-hosted` (workflow uses `runs-on: self-hosted`)
-- Runner user can write to `/srv/www/countdown`
-- Runner user can execute `bash`, `rsync`, `ln`, `mv`
-
-Recommended permissions:
-
+## 7) GoAccess onboarding
 ```bash
-sudo mkdir -p /srv/www/countdown/releases
-sudo chown -R ubuntu:ubuntu /srv/www/countdown
-sudo chmod -R u=rwX,go=rX /srv/www/countdown
-```
-
-Install runner as a persistent service (recommended after first successful run):
-
-```bash
-cd ~/actions-runner
-sudo ./svc.sh install ubuntu
-sudo ./svc.sh start
-sudo ./svc.sh status
-```
-
-## 4) Deploy behavior (automatic)
-Workflow file: `.github/workflows/deploy-countdown.yml`
-
-Trigger:
-- Every push to `main`
-
-Release strategy:
-- Creates `/srv/www/countdown/releases/<timestamp>-<git-sha12>`
-- Updates symlink `/srv/www/countdown/current`
-- Keeps latest 10 releases (configurable via `KEEP_RELEASES`)
-
-Rollback:
-
-```bash
-cd /srv/www/countdown
-ls -1dt releases/*
-ln -sfn /srv/www/countdown/releases/<older-release-id> current
-```
-
-## 5) GoAccess onboarding for countdown
-Use your existing GoAccess infra at `/srv/ops/goaccess`.
-
-Option A (preferred helper):
-
-```bash
-cd /srv/ops/goaccess
+cd "${GOACCESS_ROOT}"
 ./bin/add-site.sh \
-  --site-id countdown \
-  --source-host countdown.gaudengalea.com \
-  --log-file /home/ubuntu/apps/caddy/data/access-countdown.log \
-  --container-name countdown-goaccess \
-  --internal-port 7892 \
+  --site-id "${APP_ID}" \
+  --source-host "${FQDN}" \
+  --log-file "${CADDY_HOST_DATA_DIR}/access-${APP_ID}.log" \
+  --container-name "${APP_ID}-goaccess" \
+  --internal-port "${GOACCESS_PORT}" \
   --enabled true
+
 ./bin/validate-sites.sh ./goaccess-sites.yaml
 ./bin/reconcile-goaccess.sh
-cp caddy/webstats.caddy.snippet /home/ubuntu/apps/caddy/sites/webstats.caddy.snippet
-docker exec caddy caddy validate --config /etc/caddy/Caddyfile
-docker exec caddy caddy reload --config /etc/caddy/Caddyfile
 ```
 
-If add-site fails because log file is missing:
-
+If log file is missing, seed one request first:
 ```bash
-curl -k -sS --resolve countdown.gaudengalea.com:443:127.0.0.1 "https://countdown.gaudengalea.com/" > /dev/null
-ls -l /home/ubuntu/apps/caddy/data/access-countdown.log
+curl -k -sS --resolve "${FQDN}:443:127.0.0.1" "https://${FQDN}/" > /dev/null
 ```
 
-If log file exists but is unreadable for your user or GoAccess tooling:
-
+If unreadable:
 ```bash
-sudo chmod 644 /home/ubuntu/apps/caddy/data/access-countdown.log
+sudo chmod 644 "${CADDY_HOST_DATA_DIR}/access-${APP_ID}.log"
 ```
 
-Option B:
-- Use template entry in `ops/goaccess/countdown-site.yaml` and merge manually into `goaccess-sites.yaml`.
+## 8) Verification checklist
+1. Local origin test:
+```bash
+curl -k -I -sS --resolve "${FQDN}:443:127.0.0.1" "https://${FQDN}"
+```
+2. DNS publication:
+```bash
+dig +short "${FQDN}" @1.1.1.1
+```
+3. Edge test via resolved edge IP:
+```bash
+curl -I -sS --resolve "${FQDN}:443:<EDGE_IP>" "https://${FQDN}"
+```
+4. Log write check:
+```bash
+tail -n 1 "${CADDY_HOST_DATA_DIR}/access-${APP_ID}.log"
+```
+5. Analytics route check:
+```bash
+curl -k -I -sS --resolve "webstats.example.com:443:127.0.0.1" "https://webstats.example.com/${APP_ID}"
+```
 
-## 6) Post-deploy verification
-1. Local origin check (bypass DNS): `curl -k -I --resolve countdown.gaudengalea.com:443:127.0.0.1 https://countdown.gaudengalea.com` returns `200`.
-2. Cloudflare edge check: `curl -I --resolve countdown.gaudengalea.com:443:<cloudflare_edge_ip> https://countdown.gaudengalea.com` returns `200`.
-3. DNS check: `dig +short countdown.gaudengalea.com @1.1.1.1` returns Cloudflare edge IP(s).
-4. `index.html` is served from `/srv/www/countdown/current`.
-5. `tail -f /home/ubuntu/apps/caddy/data/access-countdown.log` shows requests.
-6. `https://webstats.gaudengalea.com/countdown` redirects to login (expected with Cloudflare Access) or renders after auth.
-7. New pushes to `main` produce new release directories.
+## 9) Runner persistence
+Run self-hosted runners as services so deploys continue after shell logout.
