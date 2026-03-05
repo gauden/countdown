@@ -2,6 +2,7 @@
 set -euo pipefail
 
 SOURCE_DIR="${GITHUB_WORKSPACE:-$(pwd)}"
+BUILD_DIR="${BUILD_DIR:-${SOURCE_DIR}/out}"
 DEPLOY_ROOT="${DEPLOY_ROOT:-/srv/www/countdown}"
 RELEASES_DIR="${DEPLOY_ROOT}/releases"
 CURRENT_LINK="${DEPLOY_ROOT}/current"
@@ -21,16 +22,14 @@ mkdir -p "${RELEASES_DIR}"
 rm -rf "${TMP_RELEASE_PATH}"
 mkdir -p "${TMP_RELEASE_PATH}"
 
+if [[ ! -d "${BUILD_DIR}" ]]; then
+  echo "Build output directory not found: ${BUILD_DIR}" >&2
+  exit 1
+fi
+
 rsync -a --delete \
-  --exclude ".git/" \
-  --exclude ".github/" \
-  --exclude "guides/" \
-  --exclude "ops/" \
-  --exclude "TODO.md" \
-  --exclude "README.md" \
-  --exclude "LICENSE" \
   --exclude ".DS_Store" \
-  "${SOURCE_DIR}/" "${TMP_RELEASE_PATH}/"
+  "${BUILD_DIR}/" "${TMP_RELEASE_PATH}/"
 
 if [[ ! -f "${TMP_RELEASE_PATH}/index.html" ]]; then
   echo "index.html not found in deployment payload" >&2

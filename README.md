@@ -1,56 +1,69 @@
 # countdown
 
-A tiny, static countdown app that runs entirely in the browser and can be shared through URL parameters.
+A tiny, static countdown app built with Next.js static export. It runs entirely in the browser and can be shared through URL parameters.
 
 ## Run the app
 
-No build step or dependencies are required.
-
-### Option 1: Open directly
-
-Open `index.html` in your browser.
-
-### Option 2: Serve locally (recommended)
-
-From the project root:
+Install dependencies once:
 
 ```bash
-python3 -m http.server 8000
+npm install
 ```
 
-Then open:
+Start local development:
 
-`http://localhost:8000`
+```bash
+npm run dev
+```
+
+Open `http://localhost:3000`.
+
+Create a static production export:
+
+```bash
+npm run build
+```
+
+Exported static files are generated in `out/`.
 
 ## Create a shareable URL
 
 The app supports a built-in generator:
 
 1. Open the app.
-2. Click `Create Your Own`.
-3. Fill in title, target date/time, unit, optional note, and optional link.
-4. Click `Create & Copy Link`.
+2. Fill in title, target date/time, and unit.
+3. Click `Apply`.
+4. Click `Copy link`.
 
-The app copies the generated URL to your clipboard and navigates to it.
+The app copies the generated URL to your clipboard.
 
 ## URL parameters
 
 Share links are plain query strings:
 
-- `d`: target datetime (required for countdown display)
-- `u`: unit (`seconds`, `minutes`, `hours`, `days`, `weeks`, `months`, `years`)
-- `t`: title
-- `n`: note
-- `l`: external URL for the "Learn More" button
+- `v`: URL schema version (`1` for new links)
+- `date`: target datetime (required for countdown display)
+- `unit`: `seconds`, `minutes`, `hours`, `days`, `weeks`, `months`, or `years`
+- `title`: countdown title
+- `note`: optional note text
+- `link`: optional external URL
 
 Example:
 
 ```text
-http://localhost:8000/?d=2026-12-31T23:59&u=days&t=New%20Year&n=Time%20left%20to%202027&l=https%3A%2F%2Fexample.com
+http://localhost:3000/?v=1&title=New%20Year&date=2026-12-31T23:59&unit=days&note=Time%20left&link=https%3A%2F%2Fexample.com
 ```
 
-If `u` is omitted, it defaults to `weeks`.
-If `d` is missing, the app opens the generator UI.
+If `unit` is omitted, it defaults to `weeks`.
+If `date` is missing, the page shows a prompt to set one.
+
+Legacy compatibility:
+- If `v=1` is absent, legacy params are mapped automatically:
+  - `d -> date`
+  - `u -> unit`
+  - `t -> title`
+  - `n -> note`
+  - `l -> link`
 
 ## Production deployment
 

@@ -3,6 +3,12 @@
 # private project constitution documents
 guides/
 
+# Node / Next.js
+node_modules/
+.next/
+out/
+npm-debug.log*
+
 
 # Created by https://www.toptal.com/developers/gitignore/api/python,macos
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,macos
@@ -213,3 +219,7 @@ poetry.toml
 pyrightconfig.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python,macos
+
+# Project source directory (override Python template's `lib/` ignore)
+!lib/
+!lib/**

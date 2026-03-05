@@ -1,0 +1,81 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  background: linear-gradient(145deg, #0e1726 0%, #1f2937 45%, #243b53 100%);
+  color: #f8fafc;
+  min-height: 100vh;
+}
+
+main {
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 2rem 1rem 3rem;
+}
+
+.card {
+  background: rgba(8, 15, 26, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 18px;
+  backdrop-filter: blur(8px);
+  padding: 1.25rem;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+}
+
+p {
+  margin: 0.6rem 0;
+}
+
+.value {
+  font-size: clamp(2.6rem, 12vw, 5.6rem);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: #7dd3fc;
+}
+
+label {
+  display: block;
+  margin-top: 0.85rem;
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+}
+
+input,
+select,
+button {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.85);
+  color: #f8fafc;
+  padding: 0.7rem 0.8rem;
+  font-size: 1rem;
+}
+
+button {
+  cursor: pointer;
+  background: #38bdf8;
+  color: #062236;
+  font-weight: 700;
+  margin-top: 1rem;
+}
+
+.grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 760px) {
+  .grid {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
