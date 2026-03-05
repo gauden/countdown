@@ -11,13 +11,14 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy to molly
-    runs-on: self-hosted
-    permissions:
-      contents: read
+    name: Build and Deploy to Molly
+    runs-on: ubuntu-latest
     env:
       DEPLOY_ROOT: /srv/www/countdown
-      KEEP_RELEASES: "10"
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -34,12 +35,33 @@ jobs:
       - name: Build static export
         run: npm run build
 
-      - name: Deploy static site
+      - name: Prepare SSH
         run: |
-          chmod +x ops/deploy/deploy_countdown.sh
-          ./ops/deploy/deploy_countdown.sh
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "${DEPLOY_PORT}" "${DEPLOY_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Upload release payload
+        run: |
+          set -euo pipefail
+          tar -czf countdown-release.tgz out ops/deploy/deploy_countdown.sh
+          scp -P "${DEPLOY_PORT}" countdown-release.tgz "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/countdown-release.tgz"
+
+      - name: Deploy on VM
+        run: |
+          set -euo pipefail
+          ssh -p "${DEPLOY_PORT}" "${DEPLOY_USER}@${DEPLOY_HOST}" "
+            set -euo pipefail
+            rm -rf /tmp/countdown-release
+            mkdir -p /tmp/countdown-release
+            tar -xzf /tmp/countdown-release.tgz -C /tmp/countdown-release
+            chmod +x /tmp/countdown-release/ops/deploy/deploy_countdown.sh
+            GITHUB_SHA='${GITHUB_SHA}' BUILD_DIR=/tmp/countdown-release/out DEPLOY_ROOT='${DEPLOY_ROOT}' /tmp/countdown-release/ops/deploy/deploy_countdown.sh
+          "
 
       - name: Verify deployed index
         run: |
-          test -f /srv/www/countdown/current/index.html
-          echo "Deployed release: $(readlink /srv/www/countdown/current)"
+          set -euo pipefail
+          ssh -p "${DEPLOY_PORT}" "${DEPLOY_USER}@${DEPLOY_HOST}" "test -f /srv/www/countdown/current/index.html && echo OK"
